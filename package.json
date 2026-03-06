@@ -1,0 +1,16 @@
+﻿{
+  "name": "brodcasta-sdk",
+  "version": "0.1.0",
+  "description": "Typed client SDK for the Brodcasta realtime platform",
+  "type": "module",
+  "main": "./src/index.ts",
+  "module": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "sideEffects": false
+}
