@@ -24,7 +24,7 @@ export type SecretResolver = string | (() => string | Promise<string>);
 export interface ClientOptions<Inbound extends EventMap, Outbound extends EventMap> {
   baseUrl: string;
   projectId: string;
-  projectSecret: SecretResolver;
+  token: SecretResolver;
   wsPath?: string;
   ssePath?: string;
   sendPath?: string;
