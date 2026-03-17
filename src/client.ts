@@ -612,22 +612,21 @@ export class BrodcastaClient<Inbound extends EventMap = EventMap, Outbound exten
     this.emitter.emit('state', { state });
   }
 
-  private async resolveSecret(): Promise<string | undefined> {
-    const secret = this.options.projectSecret;
-    if (!secret) return undefined;
-    if (typeof secret === 'function') {
-      const value = await secret();
-      return value || undefined;
+  private async resolveToken(): Promise<string> {
+    const token = this.options.token;
+    if (typeof token === 'function') {
+      const value = await token();
+      return value || '';
     }
-    return secret;
+    return token;
   }
 
   private async requireSecret(): Promise<string> {
-    const secret = await this.resolveSecret();
-    if (!secret) {
-      throw new Error('projectSecret is required');
+    const token = await this.resolveToken();
+    if (!token) {
+      throw new Error('token is required');
     }
-    return secret;
+    return token;
   }
 
   private withClientToken(payload: unknown): unknown {
