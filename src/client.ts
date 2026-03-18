@@ -327,9 +327,8 @@ export class BrodcastaClient<Inbound extends EventMap = EventMap, Outbound exten
     const baseUrl = normalizeBaseUrl(this.options.baseUrl);
     const path = applyProjectId(this.options.wsPath ?? DEFAULTS.wsPath, this.options.projectId);
     const url = joinUrl(baseUrl, path);
-    const secret = await this.requireSecret();
     const secretQueryParam = this.options.secretQueryParam ?? DEFAULTS.secretQueryParam;
-    const wsUrl = toWsUrl(withQuery(url, secretQueryParam ? { [secretQueryParam]: secret } : {}));
+    const wsUrl = toWsUrl(withQuery(url, secretQueryParam ? { [secretQueryParam]: this.options.token } : {}));
 
     this.transport = 'ws';
     this.emitter.emit('transport', { transport: 'ws' });
@@ -400,9 +399,8 @@ export class BrodcastaClient<Inbound extends EventMap = EventMap, Outbound exten
     const baseUrl = normalizeBaseUrl(this.options.baseUrl);
     const path = applyProjectId(this.options.ssePath ?? DEFAULTS.ssePath, this.options.projectId);
     const url = joinUrl(baseUrl, path);
-    const secret = await this.requireSecret();
     const secretQueryParam = this.options.secretQueryParam ?? DEFAULTS.secretQueryParam;
-    const sseUrl = withQuery(url, secretQueryParam ? { [secretQueryParam]: secret } : {});
+    const sseUrl = withQuery(url, secretQueryParam ? { [secretQueryParam]: this.options.token } : {});
 
     this.transport = 'sse';
     this.emitter.emit('transport', { transport: 'sse' });
@@ -550,7 +548,6 @@ export class BrodcastaClient<Inbound extends EventMap = EventMap, Outbound exten
       throw new Error('sendPath is required for HTTP send');
     }
 
-    const secret = await this.requireSecret();
     const url = joinUrl(baseUrl, path);
     const headers: Record<string, string> = {
       'content-type': 'application/json',
@@ -558,7 +555,7 @@ export class BrodcastaClient<Inbound extends EventMap = EventMap, Outbound exten
     };
 
     const secretQueryParam = this.options.secretQueryParam ?? DEFAULTS.secretQueryParam;
-    const targetUrl = withQuery(url, secretQueryParam ? { [secretQueryParam]: secret } : {});
+    const targetUrl = withQuery(url, secretQueryParam ? { [secretQueryParam]: this.options.token } : {});
     const body = this.withClientToken(payload);
 
     await fetch(targetUrl, {
@@ -612,22 +609,9 @@ export class BrodcastaClient<Inbound extends EventMap = EventMap, Outbound exten
     this.emitter.emit('state', { state });
   }
 
-  private async resolveToken(): Promise<string> {
-    const token = this.options.token;
-    if (typeof token === 'function') {
-      const value = await token();
-      return value || '';
-    }
-    return token;
-  }
+  
 
-  private async requireSecret(): Promise<string> {
-    const token = await this.resolveToken();
-    if (!token) {
-      throw new Error('token is required');
-    }
-    return token;
-  }
+ 
 
   private withClientToken(payload: unknown): unknown {
     if (!this.clientToken) return payload;
