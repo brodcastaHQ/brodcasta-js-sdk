@@ -203,10 +203,10 @@ export class BrodcastaClient<Inbound extends EventMap = EventMap, Outbound exten
     return this.clientId;
   }
 
-  async connect(): Promise<void> {
+  async connect(token?: string): Promise<void> {
     if (this.connectPromise) return this.connectPromise;
     this.manualClose = false;
-    this.connectPromise = this.connectInternal().finally(() => {
+    this.connectPromise = this.connectInternal(token).finally(() => {
       this.connectPromise = null;
     });
     return this.connectPromise;
@@ -300,35 +300,36 @@ export class BrodcastaClient<Inbound extends EventMap = EventMap, Outbound exten
     await this.sendHttp(payload);
   }
 
-  private async connectInternal(): Promise<void> {
+  private async connectInternal(token?: string): Promise<void> {
     this.setState('connecting');
 
     if (this.options.prefer === 'sse') {
       try {
-        await this.connectSse();
+        await this.connectSse(token);
         return;
       } catch (error) {
         if (!this.options.fallbackToSse) throw error;
-        await this.connectWs();
+        await this.connectWs(token);
         return;
       }
     }
 
     try {
-      await this.connectWs();
+      await this.connectWs(token);
     } catch (error) {
       if (!this.options.fallbackToSse) throw error;
       this.wsFailures += 1;
-      await this.connectSse();
+      await this.connectSse(token);
     }
   }
 
-  private async connectWs(): Promise<void> {
+  private async connectWs(token?: string): Promise<void> {
     const baseUrl = normalizeBaseUrl(this.options.baseUrl);
     const path = applyProjectId(this.options.wsPath ?? DEFAULTS.wsPath, this.options.projectId);
     const url = joinUrl(baseUrl, path);
+    const authToken = token || this.options.token || '';
     const secretQueryParam = this.options.secretQueryParam ?? DEFAULTS.secretQueryParam;
-    const wsUrl = toWsUrl(withQuery(url, secretQueryParam ? { [secretQueryParam]: this.options.token } : {}));
+    const wsUrl = toWsUrl(withQuery(url, authToken ? { [secretQueryParam]: authToken } : {}));
 
     this.transport = 'ws';
     this.emitter.emit('transport', { transport: 'ws' });
@@ -395,12 +396,13 @@ export class BrodcastaClient<Inbound extends EventMap = EventMap, Outbound exten
     }
   }
 
-  private async connectSse(): Promise<void> {
+  private async connectSse(token?: string): Promise<void> {
     const baseUrl = normalizeBaseUrl(this.options.baseUrl);
     const path = applyProjectId(this.options.ssePath ?? DEFAULTS.ssePath, this.options.projectId);
     const url = joinUrl(baseUrl, path);
+    const authToken = token || this.options.token || '';
     const secretQueryParam = this.options.secretQueryParam ?? DEFAULTS.secretQueryParam;
-    const sseUrl = withQuery(url, secretQueryParam ? { [secretQueryParam]: this.options.token } : {});
+    const sseUrl = withQuery(url, authToken ? { [secretQueryParam]: authToken } : {});
 
     this.transport = 'sse';
     this.emitter.emit('transport', { transport: 'sse' });
@@ -541,7 +543,7 @@ export class BrodcastaClient<Inbound extends EventMap = EventMap, Outbound exten
     this.sse.removeEventListener(eventName, handler);
   }
 
-  private async sendHttp(payload: unknown): Promise<void> {
+  private async sendHttp(payload: unknown, token?: string): Promise<void> {
     const baseUrl = normalizeBaseUrl(this.options.baseUrl);
     const path = applyProjectId(this.options.sendPath ?? DEFAULTS.sendPath, this.options.projectId);
     if (!path) {
@@ -554,8 +556,9 @@ export class BrodcastaClient<Inbound extends EventMap = EventMap, Outbound exten
       ...(this.options.headers ?? {}),
     };
 
+    const authToken = token || this.options.token || '';
     const secretQueryParam = this.options.secretQueryParam ?? DEFAULTS.secretQueryParam;
-    const targetUrl = withQuery(url, secretQueryParam ? { [secretQueryParam]: this.options.token } : {});
+    const targetUrl = withQuery(url, authToken ? { [secretQueryParam]: authToken } : {});
     const body = this.withClientToken(payload);
 
     await fetch(targetUrl, {
