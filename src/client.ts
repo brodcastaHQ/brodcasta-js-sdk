@@ -130,10 +130,12 @@ export class BrodcastaClient<Inbound extends EventMap = EventMap, Outbound exten
 
   constructor(options: ClientOptions<Inbound, Outbound>) {
     const reconnect = { ...DEFAULTS.reconnect, ...options.reconnect };
+    const token = options.token || null;
     this.options = {
       ...DEFAULTS,
       ...options,
       reconnect,
+      token,
     };
 
     if (!this.options.projectId) {
@@ -300,7 +302,7 @@ export class BrodcastaClient<Inbound extends EventMap = EventMap, Outbound exten
     await this.sendHttp(payload);
   }
 
-  private async connectInternal(token?: string): Promise<void> {
+  private async connectInternal(token?: string | null): Promise<void> {
     this.setState('connecting');
 
     if (this.options.prefer === 'sse') {
@@ -323,7 +325,7 @@ export class BrodcastaClient<Inbound extends EventMap = EventMap, Outbound exten
     }
   }
 
-  private async connectWs(token?: string): Promise<void> {
+  private async connectWs(token?: string | null): Promise<void> {
     const baseUrl = normalizeBaseUrl(this.options.baseUrl);
     const path = applyProjectId(this.options.wsPath ?? DEFAULTS.wsPath, this.options.projectId);
     const url = joinUrl(baseUrl, path);
@@ -396,7 +398,7 @@ export class BrodcastaClient<Inbound extends EventMap = EventMap, Outbound exten
     }
   }
 
-  private async connectSse(token?: string): Promise<void> {
+  private async connectSse(token?: string  | null): Promise<void> {
     const baseUrl = normalizeBaseUrl(this.options.baseUrl);
     const path = applyProjectId(this.options.ssePath ?? DEFAULTS.ssePath, this.options.projectId);
     const url = joinUrl(baseUrl, path);
@@ -578,7 +580,7 @@ export class BrodcastaClient<Inbound extends EventMap = EventMap, Outbound exten
       if (transport === 'ws') {
         this.wsFailures += 1;
         if (this.options.fallbackToSse && this.wsFailures >= (reconnect.fallbackAfter ?? 1)) {
-          void this.connectSse();
+          void this.connectSse(this.options.token);
         }
       }
       return;
@@ -596,7 +598,7 @@ export class BrodcastaClient<Inbound extends EventMap = EventMap, Outbound exten
 
     this.clearReconnectTimer();
     this.reconnectTimer = window.setTimeout(() => {
-      void this.connectInternal();
+      void this.connectInternal(this.options.token);
     }, delay);
   }
 
