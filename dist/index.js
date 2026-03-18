@@ -96,10 +96,12 @@ var BrodcastaClient = class {
   pendingSse = [];
   constructor(options) {
     const reconnect = { ...DEFAULTS.reconnect, ...options.reconnect };
+    const token = options.token || null;
     this.options = {
       ...DEFAULTS,
       ...options,
-      reconnect
+      reconnect,
+      token
     };
     if (!this.options.projectId) {
       throw new Error("projectId is required");
@@ -145,10 +147,10 @@ var BrodcastaClient = class {
   getClientId() {
     return this.clientId;
   }
-  async connect() {
+  async connect(token) {
     if (this.connectPromise) return this.connectPromise;
     this.manualClose = false;
-    this.connectPromise = this.connectInternal().finally(() => {
+    this.connectPromise = this.connectInternal(token).finally(() => {
       this.connectPromise = null;
     });
     return this.connectPromise;
@@ -218,33 +220,33 @@ var BrodcastaClient = class {
     }
     await this.sendHttp(payload);
   }
-  async connectInternal() {
+  async connectInternal(token) {
     this.setState("connecting");
     if (this.options.prefer === "sse") {
       try {
-        await this.connectSse();
+        await this.connectSse(token);
         return;
       } catch (error) {
         if (!this.options.fallbackToSse) throw error;
-        await this.connectWs();
+        await this.connectWs(token);
         return;
       }
     }
     try {
-      await this.connectWs();
+      await this.connectWs(token);
     } catch (error) {
       if (!this.options.fallbackToSse) throw error;
       this.wsFailures += 1;
-      await this.connectSse();
+      await this.connectSse(token);
     }
   }
-  async connectWs() {
+  async connectWs(token) {
     const baseUrl = normalizeBaseUrl(this.options.baseUrl);
     const path = applyProjectId(this.options.wsPath ?? DEFAULTS.wsPath, this.options.projectId);
     const url = joinUrl(baseUrl, path);
-    const secret = await this.requireSecret();
+    const authToken = token || this.options.token || "";
     const secretQueryParam = this.options.secretQueryParam ?? DEFAULTS.secretQueryParam;
-    const wsUrl = toWsUrl(withQuery(url, secretQueryParam ? { [secretQueryParam]: secret } : {}));
+    const wsUrl = toWsUrl(withQuery(url, authToken ? { [secretQueryParam]: authToken } : {}));
     this.transport = "ws";
     this.emitter.emit("transport", { transport: "ws" });
     await new Promise((resolve, reject) => {
@@ -302,13 +304,13 @@ var BrodcastaClient = class {
       return {};
     }
   }
-  async connectSse() {
+  async connectSse(token) {
     const baseUrl = normalizeBaseUrl(this.options.baseUrl);
     const path = applyProjectId(this.options.ssePath ?? DEFAULTS.ssePath, this.options.projectId);
     const url = joinUrl(baseUrl, path);
-    const secret = await this.requireSecret();
+    const authToken = token || this.options.token || "";
     const secretQueryParam = this.options.secretQueryParam ?? DEFAULTS.secretQueryParam;
-    const sseUrl = withQuery(url, secretQueryParam ? { [secretQueryParam]: secret } : {});
+    const sseUrl = withQuery(url, authToken ? { [secretQueryParam]: authToken } : {});
     this.transport = "sse";
     this.emitter.emit("transport", { transport: "sse" });
     await new Promise((resolve, reject) => {
@@ -425,20 +427,20 @@ var BrodcastaClient = class {
     if (!this.sse) return;
     this.sse.removeEventListener(eventName, handler);
   }
-  async sendHttp(payload) {
+  async sendHttp(payload, token) {
     const baseUrl = normalizeBaseUrl(this.options.baseUrl);
     const path = applyProjectId(this.options.sendPath ?? DEFAULTS.sendPath, this.options.projectId);
     if (!path) {
       throw new Error("sendPath is required for HTTP send");
     }
-    const secret = await this.requireSecret();
     const url = joinUrl(baseUrl, path);
     const headers = {
       "content-type": "application/json",
       ...this.options.headers ?? {}
     };
+    const authToken = token || this.options.token || "";
     const secretQueryParam = this.options.secretQueryParam ?? DEFAULTS.secretQueryParam;
-    const targetUrl = withQuery(url, secretQueryParam ? { [secretQueryParam]: secret } : {});
+    const targetUrl = withQuery(url, authToken ? { [secretQueryParam]: authToken } : {});
     const body = this.withClientToken(payload);
     await fetch(targetUrl, {
       method: "POST",
@@ -455,7 +457,7 @@ var BrodcastaClient = class {
       if (transport === "ws") {
         this.wsFailures += 1;
         if (this.options.fallbackToSse && this.wsFailures >= (reconnect.fallbackAfter ?? 1)) {
-          void this.connectSse();
+          void this.connectSse(this.options.token);
         }
       }
       return;
@@ -470,7 +472,7 @@ var BrodcastaClient = class {
     this.emitter.emit("reconnect", { attempt: this.reconnectAttempts, delayMs: delay, transport });
     this.clearReconnectTimer();
     this.reconnectTimer = window.setTimeout(() => {
-      void this.connectInternal();
+      void this.connectInternal(this.options.token);
     }, delay);
   }
   clearReconnectTimer() {
@@ -482,22 +484,6 @@ var BrodcastaClient = class {
   setState(state) {
     this.state = state;
     this.emitter.emit("state", { state });
-  }
-  async resolveSecret() {
-    const secret = this.options.projectSecret;
-    if (!secret) return void 0;
-    if (typeof secret === "function") {
-      const value = await secret();
-      return value || void 0;
-    }
-    return secret;
-  }
-  async requireSecret() {
-    const secret = await this.resolveSecret();
-    if (!secret) {
-      throw new Error("projectSecret is required");
-    }
-    return secret;
   }
   withClientToken(payload) {
     if (!this.clientToken) return payload;

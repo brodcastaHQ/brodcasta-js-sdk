@@ -13,7 +13,7 @@ type SecretResolver = string | (() => string | Promise<string>);
 interface ClientOptions<Inbound extends EventMap, Outbound extends EventMap> {
     baseUrl: string;
     projectId: string;
-    projectSecret: SecretResolver;
+    token?: string | null;
     wsPath?: string;
     ssePath?: string;
     sendPath?: string;
@@ -107,7 +107,7 @@ declare class BrodcastaClient<Inbound extends EventMap = EventMap, Outbound exte
     getTransport(): Transport | null;
     getClientToken(): string | null;
     getClientId(): string | null;
-    connect(): Promise<void>;
+    connect(token?: string): Promise<void>;
     disconnect(code?: number, reason?: string): Promise<void>;
     join(roomId: string, payload?: unknown): Promise<void>;
     leave(roomId: string, payload?: unknown): Promise<void>;
@@ -129,8 +129,6 @@ declare class BrodcastaClient<Inbound extends EventMap = EventMap, Outbound exte
     private scheduleReconnect;
     private clearReconnectTimer;
     private setState;
-    private resolveSecret;
-    private requireSecret;
     private withClientToken;
     private flushPendingSse;
     private rejectPendingSse;
