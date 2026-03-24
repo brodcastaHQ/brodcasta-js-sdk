@@ -39,7 +39,7 @@ var DEFAULTS = {
   connectTimeoutMs: 8e3,
   reconnect: {
     enabled: true,
-    maxAttempts: 10,
+    maxAttempts: 5,
     minDelayMs: 500,
     maxDelayMs: 8e3,
     jitter: 0.3,

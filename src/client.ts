@@ -54,7 +54,7 @@ const DEFAULTS = {
   connectTimeoutMs: 8000,
   reconnect: {
     enabled: true,
-    maxAttempts: 10,
+    maxAttempts: 5,
     minDelayMs: 500,
     maxDelayMs: 8000,
     jitter: 0.3,
