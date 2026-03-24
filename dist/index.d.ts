@@ -18,7 +18,7 @@ interface ClientOptions<Inbound extends EventMap, Outbound extends EventMap> {
     ssePath?: string;
     sendPath?: string;
     room?: string;
-    secretQueryParam?: string | null;
+    tokenQueryParam?: string | null;
     headers?: Record<string, string>;
     autoConnect?: boolean;
     prefer?: Transport;
@@ -111,12 +111,12 @@ declare class BrodcastaClient<Inbound extends EventMap = EventMap, Outbound exte
     disconnect(code?: number, reason?: string): Promise<void>;
     join(roomId: string, payload?: unknown): Promise<void>;
     leave(roomId: string, payload?: unknown): Promise<void>;
-    send<E extends keyof Outbound & string>(event: E, data: Outbound[E], room?: string): Promise<void>;
-    sendMessage(roomId: string, message: string): Promise<void>;
-    broadcast(message: string): Promise<void>;
-    direct(targetClientId: string, message: string): Promise<void>;
+    send<E extends keyof Outbound & string>(event: E, data: Outbound[E], room?: string, token?: string): Promise<void>;
+    sendMessage(roomId: string, message: string, token?: string): Promise<void>;
+    broadcast(message: string, token?: string): Promise<void>;
+    direct(targetClientId: string, message: string, token?: string): Promise<void>;
     ping(): Promise<void>;
-    sendRaw(payload: unknown): Promise<void>;
+    sendRaw(payload: unknown, token?: string): Promise<void>;
     private connectInternal;
     private connectWs;
     private parseEvent;
@@ -130,6 +130,7 @@ declare class BrodcastaClient<Inbound extends EventMap = EventMap, Outbound exte
     private clearReconnectTimer;
     private setState;
     private withClientToken;
+    private withClientTokenAndAuth;
     private flushPendingSse;
     private rejectPendingSse;
     private log;

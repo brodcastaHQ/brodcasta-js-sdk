@@ -32,7 +32,7 @@ var DEFAULTS = {
   wsPath: "/ws/{projectId}",
   ssePath: "/sse/{projectId}/connect",
   sendPath: "/sse/{projectId}/send",
-  secretQueryParam: "secret",
+  tokenQueryParam: "token",
   autoConnect: true,
   prefer: "ws",
   fallbackToSse: true,
@@ -180,7 +180,7 @@ var BrodcastaClient = class {
     const data = this.options.formatJoin ? this.options.formatJoin(roomId, payload) : { event_type: "room.unsubscribe", data: { room_id: roomId, ...payloadObj } };
     await this.sendRaw(data);
   }
-  async send(event, data, room) {
+  async send(event, data, room, token) {
     let payloadData = data;
     if (room) {
       if (data && typeof data === "object" && !Array.isArray(data)) {
@@ -190,21 +190,21 @@ var BrodcastaClient = class {
       }
     }
     const payload = this.options.formatSend ? this.options.formatSend(event, payloadData) : { event_type: event, data: payloadData };
-    await this.sendRaw(payload);
+    await this.sendRaw(payload, token);
   }
-  async sendMessage(roomId, message) {
-    await this.sendRaw({ event_type: "message.send", data: { room_id: roomId, message } });
+  async sendMessage(roomId, message, token) {
+    await this.sendRaw({ event_type: "message.send", data: { room_id: roomId, message } }, token);
   }
-  async broadcast(message) {
-    await this.sendRaw({ event_type: "message.broadcast", data: { message } });
+  async broadcast(message, token) {
+    await this.sendRaw({ event_type: "message.broadcast", data: { message } }, token);
   }
-  async direct(targetClientId, message) {
-    await this.sendRaw({ event_type: "message.direct", data: { target_client_id: targetClientId, message } });
+  async direct(targetClientId, message, token) {
+    await this.sendRaw({ event_type: "message.direct", data: { target_client_id: targetClientId, message } }, token);
   }
   async ping() {
     await this.sendRaw({ event_type: "client.ping", data: {} });
   }
-  async sendRaw(payload) {
+  async sendRaw(payload, token) {
     if (this.state !== "open") {
       throw new Error("Client is not connected");
     }
@@ -218,7 +218,7 @@ var BrodcastaClient = class {
       });
       return;
     }
-    await this.sendHttp(payload);
+    await this.sendHttp(payload, token || this.options.token || void 0);
   }
   async connectInternal(token) {
     this.setState("connecting");
@@ -245,8 +245,8 @@ var BrodcastaClient = class {
     const path = applyProjectId(this.options.wsPath ?? DEFAULTS.wsPath, this.options.projectId);
     const url = joinUrl(baseUrl, path);
     const authToken = token || this.options.token || "";
-    const secretQueryParam = this.options.secretQueryParam ?? DEFAULTS.secretQueryParam;
-    const wsUrl = toWsUrl(withQuery(url, authToken ? { [secretQueryParam]: authToken } : {}));
+    const tokenQueryParam = this.options.tokenQueryParam ?? DEFAULTS.tokenQueryParam;
+    const wsUrl = toWsUrl(withQuery(url, authToken ? { [tokenQueryParam]: authToken } : {}));
     this.transport = "ws";
     this.emitter.emit("transport", { transport: "ws" });
     await new Promise((resolve, reject) => {
@@ -309,8 +309,8 @@ var BrodcastaClient = class {
     const path = applyProjectId(this.options.ssePath ?? DEFAULTS.ssePath, this.options.projectId);
     const url = joinUrl(baseUrl, path);
     const authToken = token || this.options.token || "";
-    const secretQueryParam = this.options.secretQueryParam ?? DEFAULTS.secretQueryParam;
-    const sseUrl = withQuery(url, authToken ? { [secretQueryParam]: authToken } : {});
+    const tokenQueryParam = this.options.tokenQueryParam ?? DEFAULTS.tokenQueryParam;
+    const sseUrl = withQuery(url, authToken ? { [tokenQueryParam]: authToken } : {});
     this.transport = "sse";
     this.emitter.emit("transport", { transport: "sse" });
     await new Promise((resolve, reject) => {
@@ -439,9 +439,9 @@ var BrodcastaClient = class {
       ...this.options.headers ?? {}
     };
     const authToken = token || this.options.token || "";
-    const secretQueryParam = this.options.secretQueryParam ?? DEFAULTS.secretQueryParam;
-    const targetUrl = withQuery(url, authToken ? { [secretQueryParam]: authToken } : {});
-    const body = this.withClientToken(payload);
+    const tokenQueryParam = this.options.tokenQueryParam ?? DEFAULTS.tokenQueryParam;
+    const targetUrl = withQuery(url, authToken ? { [tokenQueryParam]: authToken } : {});
+    const body = this.withClientTokenAndAuth(payload, authToken);
     await fetch(targetUrl, {
       method: "POST",
       headers,
@@ -492,13 +492,23 @@ var BrodcastaClient = class {
     if ("client_token" in obj) return payload;
     return { ...obj, client_token: this.clientToken };
   }
+  withClientTokenAndAuth(payload, authToken) {
+    let result = this.withClientToken(payload);
+    if (!authToken) return result;
+    if (!result || typeof result !== "object") {
+      return { token: authToken };
+    }
+    const obj = result;
+    if ("token" in obj) return result;
+    return { ...obj, token: authToken };
+  }
   async flushPendingSse() {
     if (!this.pendingSse.length) return;
     const pending = [...this.pendingSse];
     this.pendingSse = [];
     for (const item of pending) {
       try {
-        await this.sendHttp(item.payload);
+        await this.sendHttp(item.payload, this.options.token || void 0);
         item.resolve();
       } catch (error) {
         item.reject(error);

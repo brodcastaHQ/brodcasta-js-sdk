@@ -47,7 +47,7 @@ const DEFAULTS = {
   wsPath: '/ws/{projectId}',
   ssePath: '/sse/{projectId}/connect',
   sendPath: '/sse/{projectId}/send',
-  secretQueryParam: 'secret',
+  tokenQueryParam: 'token',
   autoConnect: true,
   prefer: 'ws' as Transport,
   fallbackToSse: true,
@@ -251,7 +251,7 @@ export class BrodcastaClient<Inbound extends EventMap = EventMap, Outbound exten
     await this.sendRaw(data);
   }
 
-  async send<E extends keyof Outbound & string>(event: E, data: Outbound[E], room?: string): Promise<void> {
+  async send<E extends keyof Outbound & string>(event: E, data: Outbound[E], room?: string, token?: string): Promise<void> {
     let payloadData: unknown = data;
     if (room) {
       if (data && typeof data === 'object' && !Array.isArray(data)) {
@@ -264,26 +264,26 @@ export class BrodcastaClient<Inbound extends EventMap = EventMap, Outbound exten
     const payload = this.options.formatSend
       ? this.options.formatSend(event, payloadData)
       : { event_type: event, data: payloadData };
-    await this.sendRaw(payload);
+    await this.sendRaw(payload, token);
   }
 
-  async sendMessage(roomId: string, message: string): Promise<void> {
-    await this.sendRaw({ event_type: 'message.send', data: { room_id: roomId, message } });
+  async sendMessage(roomId: string, message: string, token?: string): Promise<void> {
+    await this.sendRaw({ event_type: 'message.send', data: { room_id: roomId, message } }, token);
   }
 
-  async broadcast(message: string): Promise<void> {
-    await this.sendRaw({ event_type: 'message.broadcast', data: { message } });
+  async broadcast(message: string, token?: string): Promise<void> {
+    await this.sendRaw({ event_type: 'message.broadcast', data: { message } }, token);
   }
 
-  async direct(targetClientId: string, message: string): Promise<void> {
-    await this.sendRaw({ event_type: 'message.direct', data: { target_client_id: targetClientId, message } });
+  async direct(targetClientId: string, message: string, token?: string): Promise<void> {
+    await this.sendRaw({ event_type: 'message.direct', data: { target_client_id: targetClientId, message } }, token);
   }
 
   async ping(): Promise<void> {
     await this.sendRaw({ event_type: 'client.ping', data: {} });
   }
 
-  async sendRaw(payload: unknown): Promise<void> {
+  async sendRaw(payload: unknown, token?: string): Promise<void> {
     if (this.state !== 'open') {
       throw new Error('Client is not connected');
     }
@@ -299,7 +299,7 @@ export class BrodcastaClient<Inbound extends EventMap = EventMap, Outbound exten
       });
       return;
     }
-    await this.sendHttp(payload);
+    await this.sendHttp(payload, token || this.options.token || undefined);
   }
 
   private async connectInternal(token?: string | null): Promise<void> {
@@ -330,8 +330,8 @@ export class BrodcastaClient<Inbound extends EventMap = EventMap, Outbound exten
     const path = applyProjectId(this.options.wsPath ?? DEFAULTS.wsPath, this.options.projectId);
     const url = joinUrl(baseUrl, path);
     const authToken = token || this.options.token || '';
-    const secretQueryParam = this.options.secretQueryParam ?? DEFAULTS.secretQueryParam;
-    const wsUrl = toWsUrl(withQuery(url, authToken ? { [secretQueryParam]: authToken } : {}));
+    const tokenQueryParam = this.options.tokenQueryParam ?? DEFAULTS.tokenQueryParam;
+    const wsUrl = toWsUrl(withQuery(url, authToken ? { [tokenQueryParam]: authToken } : {}));
 
     this.transport = 'ws';
     this.emitter.emit('transport', { transport: 'ws' });
@@ -403,8 +403,8 @@ export class BrodcastaClient<Inbound extends EventMap = EventMap, Outbound exten
     const path = applyProjectId(this.options.ssePath ?? DEFAULTS.ssePath, this.options.projectId);
     const url = joinUrl(baseUrl, path);
     const authToken = token || this.options.token || '';
-    const secretQueryParam = this.options.secretQueryParam ?? DEFAULTS.secretQueryParam;
-    const sseUrl = withQuery(url, authToken ? { [secretQueryParam]: authToken } : {});
+    const tokenQueryParam = this.options.tokenQueryParam ?? DEFAULTS.tokenQueryParam;
+    const sseUrl = withQuery(url, authToken ? { [tokenQueryParam]: authToken } : {});
 
     this.transport = 'sse';
     this.emitter.emit('transport', { transport: 'sse' });
@@ -559,9 +559,9 @@ export class BrodcastaClient<Inbound extends EventMap = EventMap, Outbound exten
     };
 
     const authToken = token || this.options.token || '';
-    const secretQueryParam = this.options.secretQueryParam ?? DEFAULTS.secretQueryParam;
-    const targetUrl = withQuery(url, authToken ? { [secretQueryParam]: authToken } : {});
-    const body = this.withClientToken(payload);
+    const tokenQueryParam = this.options.tokenQueryParam ?? DEFAULTS.tokenQueryParam;
+    const targetUrl = withQuery(url, authToken ? { [tokenQueryParam]: authToken } : {});
+    const body = this.withClientTokenAndAuth(payload, authToken);
 
     await fetch(targetUrl, {
       method: 'POST',
@@ -626,13 +626,28 @@ export class BrodcastaClient<Inbound extends EventMap = EventMap, Outbound exten
     return { ...obj, client_token: this.clientToken };
   }
 
+  private withClientTokenAndAuth(payload: unknown, authToken?: string): unknown {
+    let result = this.withClientToken(payload);
+    
+    if (!authToken) return result;
+    
+    if (!result || typeof result !== 'object') {
+      return { token: authToken };
+    }
+    
+    const obj = result as Record<string, unknown>;
+    if ('token' in obj) return result;
+    
+    return { ...obj, token: authToken };
+  }
+
   private async flushPendingSse(): Promise<void> {
     if (!this.pendingSse.length) return;
     const pending = [...this.pendingSse];
     this.pendingSse = [];
     for (const item of pending) {
       try {
-        await this.sendHttp(item.payload);
+        await this.sendHttp(item.payload, this.options.token || undefined);
         item.resolve();
       } catch (error) {
         item.reject(error);

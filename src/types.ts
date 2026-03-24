@@ -29,7 +29,7 @@ export interface ClientOptions<Inbound extends EventMap, Outbound extends EventM
   ssePath?: string;
   sendPath?: string;
   room?: string;
-  secretQueryParam?: string | null;
+  tokenQueryParam?: string | null;
   headers?: Record<string, string>;
   autoConnect?: boolean;
   prefer?: Transport;
