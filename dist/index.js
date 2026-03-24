@@ -44,14 +44,12 @@ var DEFAULTS = {
     maxDelayMs: 8e3,
     jitter: 0.3,
     fallbackAfter: 1
-  }
+  },
+  token: null
+  // Default token placeholder
 };
 function normalizeBaseUrl(baseUrl) {
   return baseUrl.replace(/\/+$/, "");
-}
-function joinUrl(baseUrl, path) {
-  if (!path.startsWith("/")) return `${baseUrl}/${path}`;
-  return `${baseUrl}${path}`;
 }
 function applyProjectId(path, projectId) {
   return path.replace("{projectId}", projectId).replace("{project_id}", projectId).replace(":projectId", projectId).replace(":project_id", projectId);
@@ -61,12 +59,11 @@ function toWsUrl(httpUrl) {
   if (httpUrl.startsWith("http://")) return httpUrl.replace("http://", "ws://");
   return httpUrl;
 }
-function withQuery(url, params) {
-  const entries = Object.entries(params).filter(([, value]) => value !== void 0);
-  if (entries.length === 0) return url;
-  const query = entries.map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value ?? "")}`).join("&");
+function buildUrlWithToken(baseUrl, path, token) {
+  const url = `${baseUrl.replace(/\/+$/, "")}${path.startsWith("/") ? path : `/${path}`}`;
+  if (!token) return url;
   const separator = url.includes("?") ? "&" : "?";
-  return `${url}${separator}${query}`;
+  return `${url}${separator}token=${encodeURIComponent(token)}`;
 }
 function clamp(num, min, max) {
   return Math.min(Math.max(num, min), max);
@@ -243,10 +240,8 @@ var BrodcastaClient = class {
   async connectWs(token) {
     const baseUrl = normalizeBaseUrl(this.options.baseUrl);
     const path = applyProjectId(this.options.wsPath ?? DEFAULTS.wsPath, this.options.projectId);
-    const url = joinUrl(baseUrl, path);
     const authToken = token || this.options.token || "";
-    const tokenQueryParam = this.options.tokenQueryParam ?? DEFAULTS.tokenQueryParam;
-    const wsUrl = toWsUrl(withQuery(url, authToken ? { [tokenQueryParam]: authToken } : {}));
+    const wsUrl = toWsUrl(buildUrlWithToken(baseUrl, path, authToken));
     this.transport = "ws";
     this.emitter.emit("transport", { transport: "ws" });
     await new Promise((resolve, reject) => {
@@ -307,10 +302,8 @@ var BrodcastaClient = class {
   async connectSse(token) {
     const baseUrl = normalizeBaseUrl(this.options.baseUrl);
     const path = applyProjectId(this.options.ssePath ?? DEFAULTS.ssePath, this.options.projectId);
-    const url = joinUrl(baseUrl, path);
     const authToken = token || this.options.token || "";
-    const tokenQueryParam = this.options.tokenQueryParam ?? DEFAULTS.tokenQueryParam;
-    const sseUrl = withQuery(url, authToken ? { [tokenQueryParam]: authToken } : {});
+    const sseUrl = buildUrlWithToken(baseUrl, path, authToken);
     this.transport = "sse";
     this.emitter.emit("transport", { transport: "sse" });
     await new Promise((resolve, reject) => {
@@ -433,14 +426,12 @@ var BrodcastaClient = class {
     if (!path) {
       throw new Error("sendPath is required for HTTP send");
     }
-    const url = joinUrl(baseUrl, path);
+    const authToken = token || this.options.token || "";
+    const targetUrl = buildUrlWithToken(baseUrl, path, authToken);
     const headers = {
       "content-type": "application/json",
       ...this.options.headers ?? {}
     };
-    const authToken = token || this.options.token || "";
-    const tokenQueryParam = this.options.tokenQueryParam ?? DEFAULTS.tokenQueryParam;
-    const targetUrl = withQuery(url, authToken ? { [tokenQueryParam]: authToken } : {});
     const body = this.withClientTokenAndAuth(payload, authToken);
     await fetch(targetUrl, {
       method: "POST",
