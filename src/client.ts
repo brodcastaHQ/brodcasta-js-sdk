@@ -83,9 +83,9 @@ function toWsUrl(httpUrl: string): string {
 
 function buildUrlWithToken(baseUrl: string, path: string, token?: string): string {
   const url = `${baseUrl.replace(/\/+$/, '')}${path.startsWith('/') ? path : `/${path}`}`;
-  if (!token) return url;
+  const tokenValue = token || 'null';
   const separator = url.includes('?') ? '&' : '?';
-  return `${url}${separator}token=${encodeURIComponent(token)}`;
+  return `${url}${separator}token=${encodeURIComponent(tokenValue)}`;
 }
 
 function clamp(num: number, min: number, max: number): number {

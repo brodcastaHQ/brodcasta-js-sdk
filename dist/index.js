@@ -61,9 +61,9 @@ function toWsUrl(httpUrl) {
 }
 function buildUrlWithToken(baseUrl, path, token) {
   const url = `${baseUrl.replace(/\/+$/, "")}${path.startsWith("/") ? path : `/${path}`}`;
-  if (!token) return url;
+  const tokenValue = token || "null";
   const separator = url.includes("?") ? "&" : "?";
-  return `${url}${separator}token=${encodeURIComponent(token)}`;
+  return `${url}${separator}token=${encodeURIComponent(tokenValue)}`;
 }
 function clamp(num, min, max) {
   return Math.min(Math.max(num, min), max);
