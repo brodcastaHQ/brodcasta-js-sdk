@@ -92,6 +92,7 @@ var BrodcastaClient = class {
   clientId = null;
   pendingSse = [];
   constructor(options) {
+    console.log("[INFO]: initializing client");
     const reconnect = { ...DEFAULTS.reconnect, ...options.reconnect };
     const token = options.token || null;
     this.options = {

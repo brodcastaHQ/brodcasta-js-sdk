@@ -122,6 +122,7 @@ export class BrodcastaClient<Inbound extends EventMap = EventMap, Outbound exten
   }> = [];
 
   constructor(options: ClientOptions<Inbound, Outbound>) {
+    console.log("[INFO]: initializing client")
     const reconnect = { ...DEFAULTS.reconnect, ...options.reconnect };
     const token = options.token || null;
     this.options = {
