@@ -122,7 +122,7 @@ export class BrodcastaClient<Inbound extends EventMap = EventMap, Outbound exten
   }> = [];
 
   constructor(options: ClientOptions<Inbound, Outbound>) {
-    console.log("[INFO]: initializing client")
+    console.log("[INFO]: initializing brodcasta client")
     const reconnect = { ...DEFAULTS.reconnect, ...options.reconnect };
     const token = options.token || null;
     this.options = {
@@ -278,12 +278,15 @@ export class BrodcastaClient<Inbound extends EventMap = EventMap, Outbound exten
   }
 
   async sendRaw(payload: unknown, token?: string): Promise<void> {
+    console.log('[DEBUG] sendRaw called', { state: this.state, transport: this.transport, ws: this.ws });
     if (this.state !== 'open') {
       throw new Error('Client is not connected');
     }
 
     if (this.transport === 'ws' && this.ws) {
+      console.log('[DEBUG] Sending via WebSocket:', payload);
       this.ws.send(JSON.stringify(payload));
+      console.log('[DEBUG] WebSocket send completed');
       return;
     }
 
@@ -297,29 +300,35 @@ export class BrodcastaClient<Inbound extends EventMap = EventMap, Outbound exten
   }
 
   private async connectInternal(token?: string | null): Promise<void> {
-    this.setState('connecting');
 
-    if (this.options.prefer === 'sse') {
-      try {
+    console.log('[INFO] Connecting to brodcasta server');
+    try {
+      this.setState('connecting');
+
+      if (this.options.prefer === 'sse') {
+        console.log('[DEBUG] trying to connect with SSE');
         await this.connectSse(token);
-        return;
-      } catch (error) {
-        if (!this.options.fallbackToSse) throw error;
-        await this.connectWs(token);
+        console.log('[DEBUG] connected with SSE');
         return;
       }
-    }
 
-    try {
+      console.log('[DEBUG] trying to connect with WebSocket');
       await this.connectWs(token);
+      console.log('[DEBUG] connected with WebSocket');
     } catch (error) {
-      if (!this.options.fallbackToSse) throw error;
-      this.wsFailures += 1;
+      console.error('[ERROR] Failed to connect to brodcasta server', error);
+      if (this.options.prefer === 'sse' && !this.options.fallbackToSse) {
+        throw error;
+      }
+      if (this.transport === 'ws') {
+        this.wsFailures += 1;
+      }
       await this.connectSse(token);
     }
   }
 
   private async connectWs(token?: string | null): Promise<void> {
+    console.log('[DEBUG] connectWs was called', { token });
     const baseUrl = normalizeBaseUrl(this.options.baseUrl);
     const path = applyProjectId(this.options.wsPath ?? DEFAULTS.wsPath, this.options.projectId);
     const authToken = token || this.options.token || '';
@@ -559,6 +568,14 @@ export class BrodcastaClient<Inbound extends EventMap = EventMap, Outbound exten
   }
 
   private scheduleReconnect(transport: Transport): void {
+
+    console.log('[DEBUG] scheduleReconnect was called', {
+      transport,
+      reconnect: this.options.reconnect ?? DEFAULTS.reconnect,
+      manualClose: this.manualClose,
+      reconnectAttempts: this.reconnectAttempts,
+    });
+
     const reconnect = this.options.reconnect ?? DEFAULTS.reconnect;
     if (!reconnect.enabled || this.manualClose) return;
 
