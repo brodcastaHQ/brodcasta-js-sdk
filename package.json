@@ -1,6 +1,6 @@
 {
   "name": "brodcasta-sdk",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Typed client SDK for the Brodcasta realtime platform",
   "type": "module",
   "main": "./dist/index.js",
@@ -18,7 +18,9 @@
   },
   "sideEffects": false,
   "pnpm": {
-    "onlyBuiltDependencies": ["esbuild"]
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ]
   },
   "devDependencies": {
     "tsup": "^8.5.1",
