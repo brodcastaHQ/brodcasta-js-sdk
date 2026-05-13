@@ -11,10 +11,9 @@ A clean, typed TypeScript client for connecting to the Brodcasta platform. It su
 
 ## Install (Local)
 
-From `frontend/`:
 
 ```bash
-pnpm add ../sdk
+pnpm add brodcasta-sdk
 ```
 
 Then import:
