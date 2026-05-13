@@ -12,6 +12,10 @@
       "default": "./dist/index.js"
     }
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mrdunamix/brodcasta-js-sdk.git"
+  },
   "sideEffects": false,
   "devDependencies": {
     "tsup": "^8.5.1",
