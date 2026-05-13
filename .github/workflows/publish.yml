@@ -24,6 +24,12 @@ jobs:
           cache: 'pnpm'
           registry-url: 'https://registry.npmjs.org'
 
+      # setup-node creates .npmrc with NODE_AUTH_TOKEN which can interfere with OIDC
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
-      - run: pnpm publish --no-git-checks
+      - name: Ensure npm 11.5.1+ for OIDC trusted publishing
+        run: npm install -g npm@latest
+      - name: Publish to npm (OIDC)
+        run: pnpm publish --no-git-checks
+        env:
+          NODE_AUTH_TOKEN: ''
