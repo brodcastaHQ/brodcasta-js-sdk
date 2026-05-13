@@ -17,6 +17,9 @@
     "url": "git+https://github.com/brodcastaHQ/brodcasta-js-sdk.git"
   },
   "sideEffects": false,
+  "pnpm": {
+    "onlyBuiltDependencies": ["esbuild"]
+  },
   "devDependencies": {
     "tsup": "^8.5.1",
     "typescript": "^5.9.3"
